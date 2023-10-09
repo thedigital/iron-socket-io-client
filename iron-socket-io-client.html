@@ -4,184 +4,204 @@
 
 <dom-module id="iron-socket-io-client">
 
-	<script>
-		/**
-		 * Element that connects via Socket.IO to a WebSocket endpoint.
-		 * It allows sending messages, adding handlers, and exposes the
-		 * connect state.
-		 */
-		class IronSocketIoClient extends Polymer.Element {
+    <script>
+        /**
+         * Element that connects via Socket.IO to a WebSocket endpoint.
+         * It allows sending messages, adding handlers, and exposes the
+         * connect state.
+         */
+        class IronSocketIoClient extends Polymer.Element {
 
-			constructor() {
-				super();
-			}
-			
-			static get is() {
-				return 'iron-socket-io-client';
-			}
+            constructor() {
+                super();
+            }
+            
+            static get is() {
+                return 'iron-socket-io-client';
+            }
 
-			static get properties() {
-				return {
-					/**
-					 * Current connection status. Can be "connected", "disconnected", or "reconnecting".
-					 */
-					status: {
-						type: String,
-						notify: true,
-					},
+            static get properties() {
+                return {
+                    /**
+                     * Current connection status. Can be "connected", "disconnected", or "reconnecting".
+                     */
+                    status: {
+                        type: String,
+                        notify: true,
+                    },
 
-					/**
-					 * Internal reference to the WebSocket
-					 */
-					_socket: Object,
+                    /**
+                     * Internal reference to the WebSocket
+                     */
+                    _socket: Object,
 
-					/**
-					 * Registered handlers for messages of SocketIO type 'message'
-					 */
-					_handlers: {
-						type: Array,
-						value: [],
-					},
+                    /**
+                     * Registered handlers for messages of SocketIO type 'message'
+                     */
+                    _handlers: {
+                        type: Array,
+                        value: [],
+                    },
 
-					/**
-					 * Registered handlers for messages of any SocketIO type
-					 */
-					_typeHandlers: {
-						type: Array,
-						value: [],
-					},
-				};
-			}
+                    /**
+                     * Registered handlers for messages of any SocketIO type
+                     */
+                    _typeHandlers: {
+                        type: Array,
+                        value: [],
+                    },
+                };
+            }
 
-			_createSocketOptions(token, options) {
-				const socketOptions = Object.assign({
-					timeout: 2000
-				}, options);
-				if (token) {
-					socketOptions.transportOptions = {
-						polling: {
-							extraHeaders: {
-								authorization: `Bearer ${token}`,
-							},
-						},
-					};
-				}
-				return socketOptions;
-			}
+            static get observers() {
+                return [
+                    '_onTypeHandlersChanged(_typeHandlers.splices, status)'
+                ]
+            }
 
-			connect(connectUri, token, options) {
-				const socketOptions = this._createSocketOptions(token, options);
-				this._socket = io(connectUri, socketOptions);
+            _createSocketOptions(token, options) {
+                const socketOptions = Object.assign({
+                    timeout: 2000
+                }, options);
+                if (token) {
+                    socketOptions.transportOptions = {
+                        polling: {
+                            extraHeaders: {
+                                authorization: `Bearer ${token}`,
+                            },
+                        },
+                    };
+                }
+                return socketOptions;
+            }
 
-				// Parse response messages retrieving 'type'
-				this._socket.on('message', (message, callback) => {
-					// Execute all handlers that are registered for this namespace
-					for (let handler of this._handlers) {
-						if (message.type.startsWith(handler.messageType)) {
-							handler.handler(message);
-						}
-					}
+            connect(connectUri, token, options) {
+                const socketOptions = this._createSocketOptions(token, options);
+                this._socket = io(connectUri, socketOptions);
 
-					this._lastKnownMessageId = message.id;
+                // Parse response messages retrieving 'type'
+                this._socket.on('message', (message, callback) => {
+                    // Execute all handlers that are registered for this namespace
+                    for (let handler of this._handlers) {
+                        if (message.type.startsWith(handler.messageType)) {
+                            handler.handler(message);
+                        }
+                    }
 
-					// Acknowledge receiving the message (if the SocketIO server supports this)
-					if (callback) {
-						callback();
-					}
-				});
+                    this._lastKnownMessageId = message.id;
 
-				// Register listeners to expose connection status
-				this._socket.on('connect', () => {
-					if (this._previouslyConnected) {
-						this.dispatchEvent(new CustomEvent('iron-socket-io-client-reconnect', {
-							detail: {
-								lastKnownMessageId: this._lastKnownMessageId,
-							},
-							bubbles: true,
-							composed: true
-						}));
-					} else {
-						// first connection; any further connections means we disconnected
-						this._previouslyConnected = true;
-					}
-					
-					this.status = 'connected';
-					this.dispatchEvent(new CustomEvent('iron-socket-io-client-connected', {
-						bubbles: true,
-						composed: true,
-					}));
-				});
-				this._socket.on('disconnect', reason => {
-					if (reason === 'io server disconnect') {
-						this.status = 'disconnected';
+                    // Acknowledge receiving the message (if the SocketIO server supports this)
+                    if (callback) {
+                        callback();
+                    }
+                });
 
-						// the disconnection was initiated by the server, you need to reconnect manually
-						return this._socket.connect();
-					}
+                // Register listeners to expose connection status
+                this._socket.on('connect', () => {
+                    if (this._previouslyConnected) {
+                        this.dispatchEvent(new CustomEvent('iron-socket-io-client-reconnect', {
+                            detail: {
+                                lastKnownMessageId: this._lastKnownMessageId,
+                            },
+                            bubbles: true,
+                            composed: true
+                        }));
+                    } else {
+                        // first connection; any further connections means we disconnected
+                        this._previouslyConnected = true;
+                    }
+                    
+                    this.status = 'connected';
+                    this.dispatchEvent(new CustomEvent('iron-socket-io-client-connected', {
+                        bubbles: true,
+                        composed: true,
+                    }));
+                });
+                this._socket.on('disconnect', reason => {
+                    if (reason === 'io server disconnect') {
+                        this.status = 'disconnected';
 
-					this.status = 'disconnected';
-				});
-				this._socket.on('connect_error', () => this.status = 'disconnected');
-				this._socket.on('reconnecting', () => this.status = 'reconnecting');
-				this._socket.on('reconnect', () => this.status = 'connected');
+                        // the disconnection was initiated by the server, you need to reconnect manually
+                        return this._socket.connect();
+                    }
 
-				this._socket.on('error', e => {
-					console.warn(`WebSocket error: ${JSON.stringify(e)}`);
-					this.dispatchEvent(new CustomEvent('iron-socket-io-client-error', {
-						detail: e,
-						bubbles: true,
-						composed: true
-					}));
-				});
+                    this.status = 'disconnected';
+                });
+                this._socket.on('connect_error', () => this.status = 'disconnected');
+                this._socket.on('reconnecting', () => this.status = 'reconnecting');
+                this._socket.on('reconnect', () => this.status = 'connected');
 
-				// Register all handlers
-				this._typeHandlers.forEach(handlerEntry => {
-					this._socket.on(handlerEntry.type, handlerEntry.handler);
-				});
-			}
+                this._socket.on('error', e => {
+                    console.warn(`WebSocket error: ${JSON.stringify(e)}`);
+                    this.dispatchEvent(new CustomEvent('iron-socket-io-client-error', {
+                        detail: e,
+                        bubbles: true,
+                        composed: true
+                    }));
+                });
+            }
 
-			/**
-			 * Sends a message to the WebSocket
-			 */
-			send(message) {
-				if (!this._socket) {
-					throw new Error(`Cannot send messages before connecting to the WebSocket. Failed to send: ${JSON.stringify(message)}`);
-				}
+            /**
+             * Sends a message to the WebSocket
+             */
+            send(message) {
+                if (!this._socket) {
+                    throw new Error(`Cannot send messages before connecting to the WebSocket. Failed to send: ${JSON.stringify(message)}`);
+                }
 
-				this._socket.send(message);
-			}
+                this._socket.send(message);
+            }
 
-			emit(type, message) {
-				if (!this._socket) {
-					throw new Error(`Cannot emit messages before connecting to the WebSocket. Failed to send: ${JSON.stringify(message)}`);
-				}
+            emit(type, message) {
+                if (!this._socket) {
+                    throw new Error(`Cannot emit messages before connecting to the WebSocket. Failed to send: ${JSON.stringify(message)}`);
+                }
 
-				this._socket.emit(type, message);
-			}
+                this._socket.emit(type, message);
+            }
 
-			/**
-			 * Registers a handler for a message type
-			 *
-			 * @param {String} messageType	Type of the message for which a handler should be registered.
-			 * 	This can be a namespace.
-			 * @param {Function} handler	Handler called when a message of a specific type arrives
-			 */
-			registerHandler(messageType, handler) {
-				this._handlers.push({
-					messageType,
-					handler,
-				});
-			}
+            /**
+             * Registers a handler for a message type
+             *
+             * @param {String} messageType	Type of the message for which a handler should be registered.
+             * 	This can be a namespace.
+             * @param {Function} handler	Handler called when a message of a specific type arrives
+             */
+            registerHandler(messageType, handler) {
+                this._handlers.push({
+                    messageType,
+                    handler,
+                });
+            }
 
-			registerTypeHandler(type, handler) {
-				this._typeHandlers.push({
-					type,
-					handler,
-				});
-			}
-		}
-		customElements.define(IronSocketIoClient.is, IronSocketIoClient);
+            registerTypeHandler(type, handler) {
+                // dont register already registered typeHandler
+                if (this._typeHandlers.some(handler => handler.type === type)) {
+                    return;
+                }
 
-	</script>
+                this.push('_typeHandlers', {
+                    type,
+                    handler,
+                });
+            }
+
+            unregisterTypeHandlers() {
+                this.set('_typeHandlers', []);
+            }
+
+            _onTypeHandlersChanged(_typeHandlers) {
+                if (this.status == 'connected') {
+                    // Register all handlers
+                    this._typeHandlers.forEach(handlerEntry => {
+                        this._socket.emit('join', handlerEntry.type);
+                        this._socket.on(handlerEntry.type, handlerEntry.handler);
+                    });
+                }
+            }
+        }
+        customElements.define(IronSocketIoClient.is, IronSocketIoClient);
+
+    </script>
 
 </dom-module>
