@@ -55,7 +55,7 @@
 
             static get observers() {
                 return [
-                    '_onTypeHandlersChanged(_typeHandlers.splices, status)'
+                    // '_onTypeHandlersChanged(_typeHandlers.splices, status)'
                 ]
             }
 
@@ -174,31 +174,42 @@
                 });
             }
 
-            registerTypeHandler(type, handler) {
-                // dont register already registered typeHandler
+            async registerTypeHandler(type, handler) {
+                let self = this;
+                return this.isNewTypeHandler(type, handler).then(function($isNew) {
+                    if ($isNew) {
+                        self._socket.on(type, handler);
+                        self._socket.emit('join', type);
+                    }
+                    return $isNew;
+                });
+            }
+
+            async isNewTypeHandler(type, handler) {
                 if (this._typeHandlers.some(handler => handler.type === type)) {
-                    return;
+                    return false;
                 }
 
                 this.push('_typeHandlers', {
                     type,
                     handler,
                 });
+                return true;
             }
 
             unregisterTypeHandlers() {
                 this.set('_typeHandlers', []);
             }
 
-            _onTypeHandlersChanged(_typeHandlers) {
-                if (this.status == 'connected') {
-                    // Register all handlers
-                    this._typeHandlers.forEach(handlerEntry => {
-                        this._socket.emit('join', handlerEntry.type);
-                        this._socket.on(handlerEntry.type, handlerEntry.handler);
-                    });
-                }
-            }
+            // _onTypeHandlersChanged(_typeHandlers) {
+            //     if (this.status == 'connected') {
+            //         // Register all handlers
+            //         this._typeHandlers.forEach(handlerEntry => {
+            //             this._socket.emit('join', handlerEntry.type);
+            //             this._socket.on(handlerEntry.type, handlerEntry.handler);
+            //         });
+            //     }
+            // }
         }
         customElements.define(IronSocketIoClient.is, IronSocketIoClient);
 
