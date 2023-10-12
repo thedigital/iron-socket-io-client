@@ -50,6 +50,16 @@
                         type: Array,
                         value: [],
                     },
+
+                    identifier: {
+                        type: String,
+                        value: 'iron-socket-io-client',
+                    },
+
+                    type: {
+                        type: String,
+                        value: 'web',
+                    }
                 };
             }
 
@@ -59,9 +69,13 @@
                 ]
             }
 
-            _createSocketOptions(token, options) {
+            _createSocketOptions(token, type, identifier, options) {
                 const socketOptions = Object.assign({
-                    timeout: 2000
+                    timeout: 2000,
+                    query: {
+                        identifier: identifier,
+                        type: type,
+                    }
                 }, options);
                 if (token) {
                     socketOptions.transportOptions = {
@@ -76,7 +90,7 @@
             }
 
             connect(connectUri, token, options) {
-                const socketOptions = this._createSocketOptions(token, options);
+                const socketOptions = this._createSocketOptions(token, this.type, this.identifier, options);
                 this._socket = io(connectUri, socketOptions);
 
                 // Parse response messages retrieving 'type'
