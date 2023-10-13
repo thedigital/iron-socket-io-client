@@ -120,6 +120,11 @@
                             bubbles: true,
                             composed: true
                         }));
+
+                        let self = this;
+                        this._typeHandlers.forEach(function(handler) {
+                            self._socket.emit('join', handler.type);
+                        })
                     } else {
                         // first connection; any further connections means we disconnected
                         this._previouslyConnected = true;
